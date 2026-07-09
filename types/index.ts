@@ -7,7 +7,7 @@
 export type Priority = 'high' | 'medium' | 'low';
 export type EnergyRequired = 'high' | 'medium' | 'low';
 export type EstimatedTime = 'tiny' | 'small' | 'medium' | 'large';
-export type TaskStatus = 'pending' | 'completed' | 'drifted' | 'cancelled';
+export type TaskStatus = 'pending' | 'completed' | 'cancelled' | 'drifted';
 export type DriftReason = 'missed' | 'auto' | 'user' | 'manual'
 
 // =============================================
@@ -30,7 +30,14 @@ export interface Task {
   isRecurring: boolean;
   recurrencePattern?: string;
 
-  driftCount: number;            // How many times this task has been drifted
+  driftCount: number;                // How many times this task has been drifted
+
+  // Step-related fields
+  isStep?: boolean;                   
+  parentTaskId?: string;             // Only populated if isStep = true
+  stepOrder?: number;                // Indicates the order of steps within the parent task
+
+  hasActiveSchedule: boolean;        // True if this task is currently scheduled for any date
 
   googleSyncInfo?: GoogleSyncInfo;
 
@@ -55,6 +62,7 @@ export interface TaskSchedule {
 
   status: TaskStatus;
   isUserScheduled: boolean;     // True if user manually picked the date
+  isDrifted: boolean;           // True if this schedule was created by the auto-drift system
   
   createdAt: Date;
   updatedAt: Date;
@@ -110,7 +118,7 @@ export interface DriftHistory {
   id: string;
   userId: string;
   taskId: string;
-  taskScheduleId: string;
+  newTaskScheduleId: string;
 
   fromDate: string;         // YYYY-MM-DD
   toDate: string;           // YYYY-MM-DD
@@ -157,6 +165,19 @@ export interface UserInsights {
   categoryPerformance?: Record<string, DayStats>;
 
   lastUpdated: Date;
+}
+
+// =============================================
+// View-Specific Types
+// =============================================
+
+export interface TodayTask extends Task {
+  scheduledDate: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+
+  isDrifted: boolean;
+  status: TaskStatus;
 }
 
 // =============================================
