@@ -13,6 +13,7 @@ import {
   orderBy,
   serverTimestamp,
   documentId,
+  writeBatch
 } from 'firebase/firestore';
 
 import type { Task } from '@/types';
@@ -51,6 +52,77 @@ export const taskService = {
             } as Task;
         } catch(error) {
             console.error("Error creating task:", error);
+            throw error;
+        }
+    },
+
+    // user created and scheduled task in one go
+    async createAndScheduleTask(
+        userId: string, 
+        taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'driftCount' | 'archived'>,
+        scheduledDate: string,
+        scheduledStartTime?: string,
+        scheduledEndTime?: string
+    ): Promise<{ task: Task; schedule: TaskSchedule }> {
+        try {
+            const batch = writeBatch(db);
+
+            // Create the task
+            const taskRef = doc(tasksCollection);
+            batch.set(taskRef, {
+                ...taskData,
+                userId,
+                driftCount: 0,
+                archived: false,
+                hasActiveSchedule: true,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            // Create the schedule
+            const scheduleRef = doc(taskSchedulesCollection);
+            batch.set(scheduleRef, {
+                userId,
+                taskId: taskRef.id,
+                scheduledDate: scheduledDate,
+                ...(scheduledStartTime && { scheduledStartTime }),
+                ...(scheduledEndTime && { scheduledEndTime }),
+                status: 'pending',
+                isUserScheduled: true,
+                isDrifted: false,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            })
+
+            await batch.commit();
+
+            return {
+                task: {
+                    id: taskRef.id,
+                    ...taskData,
+                    userId,
+                    driftCount: 0,
+                    archived: false,
+                    hasActiveSchedule: true,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                } as Task,
+                schedule: {
+                    id: scheduleRef.id,
+                    userId,
+                    taskId: taskRef.id,
+                    scheduledDate: scheduledDate,
+                    scheduledStartTime: scheduledStartTime,
+                    scheduledEndTime: scheduledEndTime,
+                    status: 'pending',
+                    isUserScheduled: true,
+                    isDrifted: false,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                } as TaskSchedule
+            };
+        } catch(error) {
+            console.error("Error creating and scheduling task:", error);
             throw error;
         }
     },
