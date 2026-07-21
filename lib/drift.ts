@@ -21,6 +21,7 @@ import type { TaskSchedule } from '@/types';
 
 
 import { taskService } from "./tasks";
+import { formatDateInTimeZone, addDaysToDateString } from "./dateUtils";
 
 const driftHistoryCollection = collection(db, "driftHistory");
 const taskSchedulesCollection = collection(db, "taskSchedules");
@@ -33,14 +34,12 @@ const userProfilesCollection = collection(db, "userProfiles");
  */
 export async function driftMissedTasks(userId: string): Promise<void> {
 
-    // 1. Find all TaskSchedules for the user that are scheduled before today and still pending
-    // 2. For each missed TaskSchedule:
-    //    a. Create a new TaskSchedule in 1-5 days, check the tasks on the day to be scheduled to make sure it doesnt
-    //       violate the max tasks per day rule. If it does, keep pushing it out by 1 day until it fits.
-    //    b. Increment the driftCount on the associated Task
-    //    c. Add an entry to the DriftHistory collection with reason = 'missed'
-
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    // get user profile early so "today" can be computed in the user's own timezone.
+    // Don't throw yet if it's missing — only throw once we know there's actually
+    // missed-task work that needs the profile's other fields
+    const userProfileDoc = await getDoc(doc(userProfilesCollection, userId));
+    const timezone = userProfileDoc.exists() ? userProfileDoc.data().timezone : undefined;
+    const today = formatDateInTimeZone(timezone); // YYYY-MM-DD
 
     // get task schedules that are before today and still pending
     const scheduleQuery = query(
@@ -65,30 +64,25 @@ export async function driftMissedTasks(userId: string): Promise<void> {
     )
     const tasksSnapshot = await getDocs(taskQuery);
 
-    // get user profile to check daily task limit and get min/max drift days
-    const userProfileDoc = await getDoc(doc(userProfilesCollection, userId));
-    
     if(!userProfileDoc.exists()) {
         throw new Error("User profile not found");
     }
 
-    const taskLimit = userProfileDoc?.data().dailyTaskLimit ?? 5; // default to 5 if not set
-    const driftDaysMin = userProfileDoc?.data().driftDaysMin ?? 1;
-    const driftDaysMax = userProfileDoc?.data().driftDaysMax ?? 5;
+    const taskLimit = userProfileDoc.data().dailyTaskLimit ?? 5; // default to 5 if not set
+    const driftDaysMin = userProfileDoc.data().driftDaysMin ?? 1;
+    const driftDaysMax = userProfileDoc.data().driftDaysMax ?? 5;
 
     for(const taskDoc of tasksSnapshot.docs) {
 
         // generate new date
-        const candidateDate = new Date()
         const driftNumber = Math.floor(Math.random() * (driftDaysMax - driftDaysMin + 1))+ driftDaysMin
-        candidateDate.setDate(candidateDate.getDate() + driftNumber)
-        
+        let candidateDateKey = addDaysToDateString(today, driftNumber);
+
         let attempts = 0;
         // Keep pushing out the date until we find a free day
         while (true) {
-            const dateKey = candidateDate.toISOString().split('T')[0];
-            const existingTasks = await taskService.getTasksForDate(userId, dateKey);
-            
+            const existingTasks = await taskService.getTasksForDate(userId, candidateDateKey);
+
             if (existingTasks.length < taskLimit) {
                 break; // found a free day
             }
@@ -98,7 +92,7 @@ export async function driftMissedTasks(userId: string): Promise<void> {
                 throw new Error(`Could not find a free day for task ${taskDoc.id} after 30 attempts`);
             }
 
-            candidateDate.setDate(candidateDate.getDate() + 1); // push out by 1 day
+            candidateDateKey = addDaysToDateString(candidateDateKey, 1); // push out by 1 day
         }
 
         // get old schedule for the task
@@ -109,7 +103,7 @@ export async function driftMissedTasks(userId: string): Promise<void> {
         } as TaskSchedule;
 
         // create new task schedule for the found date
-        await driftSchedule(userId, oldSchedule, taskDoc.id, candidateDate.toISOString().split('T')[0], 'missed');
+        await driftSchedule(userId, oldSchedule, taskDoc.id, candidateDateKey, 'missed');
 
     }
 }
