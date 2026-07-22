@@ -80,6 +80,7 @@ export interface Category {
   sortOrder: number;             // Used to control display order
 
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface UserProfile {

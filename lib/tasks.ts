@@ -205,7 +205,6 @@ export const taskService = {
                 updatedAt: serverTimestamp()
             });
 
-
         } catch(error) {
             console.error("Error updating task:", error);
             throw error;
