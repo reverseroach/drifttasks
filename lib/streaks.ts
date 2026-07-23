@@ -4,12 +4,12 @@ import { db } from './firebase';
 import {
     collection,
     doc,
-    getDoc,
     updateDoc,
     serverTimestamp,
     runTransaction
 } from 'firebase/firestore';
 import { formatDateInTimeZone, addDaysToDateString } from './dateUtils';
+import { getUserProfile } from './userProfile';
 
 const userProfilesCollection = collection(db, 'userProfiles');
 
@@ -67,21 +67,20 @@ export async function updateStreak(userId: string): Promise<void> {
  */
 export async function resetStreakIfNeeded(userId: string): Promise<void> {
     try {
-        const docRef = doc(userProfilesCollection, userId);
-        const docSnap = await getDoc(docRef);
+        const profile = await getUserProfile(userId)
 
-        if (!docSnap.exists()) {
+        if (profile == null) {
             throw new Error("User profile not found");
         }
 
-        const lastStreakDate = docSnap.data().lastStreakDate;
-        const timezone = docSnap.data().timezone;
+        const lastStreakDate = profile.lastStreakDate;
+        const timezone = profile.timezone;
 
         const todayStr = formatDateInTimeZone(timezone);
         const yesterdayStr = addDaysToDateString(todayStr, -1);
 
         if (lastStreakDate && lastStreakDate < yesterdayStr) {
-            await updateDoc(docRef, {
+            await updateDoc(doc(db, 'userProfiles', userId), {
                 currentStreak: 0,
                 lastStreakUpdatedAt: serverTimestamp()
             });
@@ -102,18 +101,16 @@ export async function getStreakInfo(userId: string): Promise<{
   lastStreakDate?: string;
 }> {
     try {
-        const docRef = doc(userProfilesCollection, userId);
-        const docSnap = await getDoc(docRef);
+        const profile = await getUserProfile(userId)
         
-        if (!docSnap.exists()) {
+        if (profile == null) {
             throw new Error("User profile not found");
         }
 
-        const data = docSnap.data();
         return {
-            currentStreak: data.currentStreak,
-            longestStreak: data.longestStreak,
-            lastStreakDate: data.lastStreakDate
+            currentStreak: profile.currentStreak,
+            longestStreak: profile.longestStreak,
+            lastStreakDate: profile.lastStreakDate
         };
 
     } catch(error) {

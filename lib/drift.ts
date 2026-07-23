@@ -18,7 +18,7 @@ import {
 
 import type { DriftHistory, DriftReason } from "@/types";
 import type { TaskSchedule } from '@/types';
-
+import { getUserProfile } from './userProfile';
 
 import { taskService } from "./tasks";
 import { formatDateInTimeZone, addDaysToDateString } from "./dateUtils";
@@ -26,7 +26,6 @@ import { formatDateInTimeZone, addDaysToDateString } from "./dateUtils";
 const driftHistoryCollection = collection(db, "driftHistory");
 const taskSchedulesCollection = collection(db, "taskSchedules");
 const tasksCollection = collection(db, "tasks");
-const userProfilesCollection = collection(db, "userProfiles");
 
 /**
  * Automatically drifts all missed tasks according to the app's rules.
@@ -37,8 +36,8 @@ export async function driftMissedTasks(userId: string): Promise<void> {
     // get user profile early so "today" can be computed in the user's own timezone.
     // Don't throw yet if it's missing — only throw once we know there's actually
     // missed-task work that needs the profile's other fields
-    const userProfileDoc = await getDoc(doc(userProfilesCollection, userId));
-    const timezone = userProfileDoc.exists() ? userProfileDoc.data().timezone : undefined;
+    const userProfileDoc = await getUserProfile(userId)
+    const timezone = userProfileDoc != null ? userProfileDoc.timezone : undefined;
     const today = formatDateInTimeZone(timezone); // YYYY-MM-DD
 
     // get task schedules that are before today and still pending
@@ -64,13 +63,13 @@ export async function driftMissedTasks(userId: string): Promise<void> {
     )
     const tasksSnapshot = await getDocs(taskQuery);
 
-    if(!userProfileDoc.exists()) {
+    if(userProfileDoc == null) {
         throw new Error("User profile not found");
     }
 
-    const taskLimit = userProfileDoc.data().dailyTaskLimit ?? 5; // default to 5 if not set
-    const driftDaysMin = userProfileDoc.data().driftDaysMin ?? 1;
-    const driftDaysMax = userProfileDoc.data().driftDaysMax ?? 5;
+    const taskLimit = userProfileDoc.dailyTaskLimit ?? 5; // default to 5 if not set
+    const driftDaysMin = userProfileDoc.driftDaysMin ?? 1;
+    const driftDaysMax = userProfileDoc.driftDaysMax ?? 5;
 
     for(const taskDoc of tasksSnapshot.docs) {
 

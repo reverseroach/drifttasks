@@ -110,6 +110,9 @@ export interface UserProfile {
   lastStreakDate?: string;             // YYYY-MM-DD
   lastStreakUpdatedAt?: Date;
 
+  // Insights Preferences
+  insightWindowDays: number;
+
   createdAt: Date;
   updatedAt: Date;
 }

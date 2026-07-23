@@ -20,10 +20,10 @@ import type { Task } from '@/types';
 import type { TaskSchedule } from '@/types';
 import type { TodayTask } from '@/types';
 import { formatDateInTimeZone } from './dateUtils';
+import { getUserProfile } from './userProfile';
 
 const tasksCollection = collection(db, 'tasks');
 const taskSchedulesCollection = collection(db, 'taskSchedules');
-const userProfilesCollection = collection(db, 'userProfiles');
 
 export const taskService = {
     // ==================== CORE CRUD ==================== //
@@ -301,8 +301,8 @@ export const taskService = {
      */
     async getTodayTasks(userId: string): Promise<TodayTask[]> {
         try {
-            const userProfileDoc = await getDoc(doc(userProfilesCollection, userId));
-            const timezone = userProfileDoc.exists() ? userProfileDoc.data().timezone : undefined;
+            const userProfileDoc = await getUserProfile(userId);
+            const timezone = userProfileDoc != null ? userProfileDoc.timezone : undefined;
             const today: string = formatDateInTimeZone(timezone);
 
             const scheduleQuery = query(

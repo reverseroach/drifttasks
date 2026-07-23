@@ -20,11 +20,11 @@ import {
     addDaysToDateString, 
     formatDateInTimeZone 
 } from './dateUtils';
+import { getUserProfile } from './userProfile';
 
 const taskSchedulesCollection = collection(db, 'taskSchedules');
 const weeklyReviewsCollection = collection(db, 'weeklyReviews');
 const tasksCollection = collection(db, 'tasks');
-const userProfilesCollection = collection(db, 'userProfiles');
 
 export async function createWeeklyReview(
     userId: string, 
@@ -193,15 +193,15 @@ export function getCurrentWeekStart(timezone: string, weeklyReviewDay: number): 
 
 export async function generateWeeklyReviewData(userId: string) {
     try {
-        const userProfileDoc = await getDoc(doc(userProfilesCollection, userId));
+        const userProfileDoc = await getUserProfile(userId)
 
-        if (!userProfileDoc.exists()) {
+        if (userProfileDoc == null) {
             throw new Error("User profile not found")
         }
 
         // create a list of the 7 days in the week
-        const timezone = userProfileDoc.data().timezone
-        const reviewDay = userProfileDoc.data().weeklyReviewDay
+        const timezone = userProfileDoc.timezone
+        const reviewDay = userProfileDoc.weeklyReviewDay
         const weekStart = getCurrentWeekStart(timezone, reviewDay)
 
         const weekDateStrings = []
@@ -275,15 +275,15 @@ export async function generateWeeklyReviewData(userId: string) {
 export async function ensureWeeklyReviewExists(userId: string) {
     try {
         // fetch profile
-        const userProfileDoc = await getDoc(doc(userProfilesCollection, userId));
+        const userProfileDoc = await getUserProfile(userId)
 
-        if (!userProfileDoc.exists()) {
+        if (userProfileDoc == null) {
             throw new Error("User profile not found")
         }
 
         // get starting week
-        const timezone = userProfileDoc.data().timezone;
-        const reviewDay = userProfileDoc.data().weeklyReviewDay
+        const timezone = userProfileDoc.timezone;
+        const reviewDay = userProfileDoc.weeklyReviewDay
         const weekStarting = getCurrentWeekStart(timezone, reviewDay)
 
         // check for existing weekly review
