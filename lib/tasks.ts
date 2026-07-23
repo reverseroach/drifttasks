@@ -410,7 +410,7 @@ export const taskService = {
 
     // ==================== UTILITY / HELPER FUNCTIONS ==================== //
 
-    // Fetches tasks for a specific date, with option to include completed tasks (for Weekly Review)
+    // Fetches tasks for a specific date, with option to include completed tasks
     async getTasksForDate(
         userId: string, 
         date: string, 

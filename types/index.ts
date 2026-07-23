@@ -136,8 +136,8 @@ export interface WeeklyReview {
   
   weekStarting: string;           // YYYY-MM-DD - start of the reviewed week
 
-  reviewedAt: Date;               // When the user completed the review
-  totalTasksReviewed: number;
+  reviewedAt?: Date;               // When the user completed the review
+  totalTasksReviewed?: number;
   tasksScheduled: number;
   tasksDrifted: number;
   completionRate: number;         // 0.0 to 1.0 (e.g. 0.75 = 75%)
@@ -146,6 +146,7 @@ export interface WeeklyReview {
   notes?: string;                 // Optional user reflections
 
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface UserInsights {

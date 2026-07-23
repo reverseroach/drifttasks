@@ -145,7 +145,7 @@ export async function manuallyDriftTask(
 }
 
 /**
- * Gets the drift history for a user (useful for Weekly Review).
+ * Gets the drift history for a user
  */
 export async function getDriftHistory(userId: string, historyLimit = 50): Promise<DriftHistory[]> {
     // Query the DriftHistory collection for entries belonging to the user, ordered by createdAt desc, limited by the provided limit

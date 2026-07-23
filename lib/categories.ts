@@ -64,6 +64,7 @@ async function getCategoryById(categoryId: string): Promise<Category | null> {
                 createdAt: data.createdAt.toDate() ?? null,
                 updatedAt: data.updatedAt.toDate() ?? null,
             } as Category
+            
         } else {
             console.log("Document does not exist")
             return null;
