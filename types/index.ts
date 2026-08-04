@@ -156,20 +156,34 @@ export interface UserInsights {
   /** Learned user behavior and patterns for smart scheduling */
   userId: string;
 
+  windowStart: string,   // YYYY-MM-DD
+  windowEnd: string,     // YYYY-MM-DD
+
   // Completion rates by day of the week
-  dayCompletionRates: Record<string, DayStats>;
+  dayCompletionRates: Record<string, DayStats>,
 
   // Performance by time of day
   timeOfDayPerformance?: {
     morning: number;         // 0.0 to 1.0
     afternoon: number;
     evening: number;
-  };
+    lateNight: number;
+  },
+
+  // Performance by drift
+  driftRate: number,    // fraction of scheduled tasks that drifted
+  driftCount: number,   
 
   // Performance by category
-  categoryPerformance?: Record<string, DayStats>;
+  categoryPerformance?: Record<string, DayStats>,
 
-  lastUpdated: Date;
+  // Performance by priority
+  priorityPerformance?: Record<string, DayStats>,
+
+  // Performance by energy
+  energyPerformance?: Record<string, DayStats>,
+
+  lastUpdated: Date,
 }
 
 // =============================================
