@@ -15,6 +15,7 @@ import {
     documentId,
     limit
 } from 'firebase/firestore';
+
 import type { WeeklyReview } from '@/types';
 import { 
     addDaysToDateString, 
@@ -25,6 +26,33 @@ import { getUserProfile } from './userProfile';
 const taskSchedulesCollection = collection(db, 'taskSchedules');
 const weeklyReviewsCollection = collection(db, 'weeklyReviews');
 const tasksCollection = collection(db, 'tasks');
+
+export async function ensureWeeklyReviewExists(userId: string): Promise<void> {
+    try {
+        // fetch profile
+        const userProfileDoc = await getUserProfile(userId)
+
+        if (userProfileDoc == null) {
+            throw new Error("User profile not found")
+        }
+
+        // get starting week
+        const timezone = userProfileDoc.timezone;
+        const reviewDay = userProfileDoc.weeklyReviewDay
+        const weekStarting = getCurrentWeekStart(timezone, reviewDay)
+
+        // check for existing weekly review
+        const weeklyReview = await getWeeklyReview(userId, weekStarting)
+        if (weeklyReview == null) {
+            // generate weekly review
+            const reviewData = await generateWeeklyReviewData(userId)
+            await createWeeklyReview(userId, reviewData)
+        }
+    } catch (error) {
+        console.error("Error checking for weekly review:", error);
+        throw error;
+    }
+}
 
 export async function createWeeklyReview(
     userId: string, 
@@ -191,7 +219,7 @@ export function getCurrentWeekStart(timezone: string, weeklyReviewDay: number): 
     return weekStart
 }
 
-export async function generateWeeklyReviewData(userId: string) {
+export async function generateWeeklyReviewData(userId: string): Promise<WeeklyReview> {
     try {
         const userProfileDoc = await getUserProfile(userId)
 
@@ -224,7 +252,7 @@ export async function generateWeeklyReviewData(userId: string) {
                 tasksDrifted: 0,
                 completionRate: 0,
                 highPriorityScheduled: 0
-            }
+            } as WeeklyReview
         }
 
         // derives tasksScheduled, tasksDrifted (cross-reference with getDriftHistory or 
@@ -264,37 +292,10 @@ export async function generateWeeklyReviewData(userId: string) {
             tasksDrifted,
             completionRate,
             highPriorityScheduled
-        }
+        } as WeeklyReview
 
     } catch (error) {
         console.error("Error generating weekly review data:", error);
-        throw error;
-    }
-}
-
-export async function ensureWeeklyReviewExists(userId: string) {
-    try {
-        // fetch profile
-        const userProfileDoc = await getUserProfile(userId)
-
-        if (userProfileDoc == null) {
-            throw new Error("User profile not found")
-        }
-
-        // get starting week
-        const timezone = userProfileDoc.timezone;
-        const reviewDay = userProfileDoc.weeklyReviewDay
-        const weekStarting = getCurrentWeekStart(timezone, reviewDay)
-
-        // check for existing weekly review
-        const weeklyReview = await getWeeklyReview(userId, weekStarting)
-        if (weeklyReview == null) {
-            // generate weekly review
-            const reviewData = await generateWeeklyReviewData(userId)
-            await createWeeklyReview(userId, reviewData)
-        }
-    } catch (error) {
-        console.error("Error checking for weekly review:", error);
         throw error;
     }
 }

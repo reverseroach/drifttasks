@@ -63,7 +63,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     }
 }
 
-export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
+export async function updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<void> {
     try {
         const docRef = doc(db, 'userProfiles', userId)
         const docSnap = await getDoc(docRef)
