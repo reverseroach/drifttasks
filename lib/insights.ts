@@ -32,7 +32,6 @@ import type {
     UserProfile
 } from '@/types';
 
-const userInsightsCollection = collection(db, 'userInsights');
 const taskSchedulesCollection = collection(db, 'taskSchedules');
 const tasksCollection = collection(db, 'tasks');
 
