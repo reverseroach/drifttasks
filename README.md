@@ -1,109 +1,90 @@
 # Drift Tasks
 
-**A gentle, ADHD-friendly task manager that syncs with Google Calendar.**
+**A gentle, ADHD-friendly task manager that works with your Google Calendar.**
 
-Drift Tasks is designed for ADHD brains. Instead of punishing you with overwhelming lists and overdue stress, it helps you capture tasks easily, schedules them intelligently, and gracefully handles the days when things don’t get done.
+Drift Tasks is built for ADHD brains. Instead of piling up overdue tasks and guilt, it helps you brain-dump tasks whenever they come to mind, places a small number of them on each day, and quietly **drifts** anything you didn't get to onto a later day.
 
-Brain-dump tasks whenever they come to mind. The app automatically schedules them into your Google Calendar and Google Tasks, then **gently drifts** missed tasks to a later day — keeping your mind clear and your calendar clean.
+> **Status: early development.** The Firestore data layer is mostly in place, but the app UI, scheduling, and Google Calendar sync are not built yet. See [Roadmap](#roadmap) for what's done and what's planned.
 
-### ✨ Key Features
+## How it's meant to work
 
-- **Smart Scheduling** — Considers priority, energy level, task categories, and your existing calendar events
-- **Gentle Drifting** — Missed tasks automatically move out of sight instead of creating guilt
-- **AI Magic Break Down** — Instantly breaks big tasks into small steps with suggested startup costs
-- **Sunday Weekly Review** — A calm, visual session to review and schedule your upcoming week
-- **Multiple Categories** — Separate lists like Household, Crafting, Work, Health, etc.
-- **Two-way Sync** with Google Calendar & Google Tasks
-- **ADHD-First Design** — Big buttons, minimal clutter, dopamine feedback, and forgiving UX
+- **Brain-dump capture.** Add tasks quickly, with optional priority, energy level, category, and a loose time estimate.
+- **A small daily load.** By default you get about 3 tasks a day (adjustable). Scheduling past your limit shows a gentle warning, never a block.
+- **Gentle drifting.** Missed tasks automatically move 2 to 5 days out instead of turning red. You can also snooze tasks yourself.
+- **Someday list.** Tasks that keep getting pushed back move to a Someday list, which resurfaces once a week.
+- **Weekly review.** A calm Sunday session to look back and plan the week ahead.
+- **Streaks.** A day counts if you finish at least one task.
+- **Google Calendar aware.** Sign in with Google, and the app reads your calendar events so it can plan around them.
 
-### Philosophy
+No shame, no rigid deadlines. Just momentum.
 
-Built on the belief that productivity tools should work *with* your brain — not against it. No shame. No rigid deadlines. Just momentum and understanding.
+## Tech stack
 
-### 🛠️ Tech Stack
+- [Next.js](https://nextjs.org) 16 (App Router) with React 19 and TypeScript
+- Tailwind CSS 4 and [shadcn/ui](https://ui.shadcn.com) (Radix)
+- Firebase: Firestore and Authentication (Google sign-in)
+- `date-fns` for timezone-aware date handling
+- [Vitest](https://vitest.dev) for tests
 
-- **Frontend**: Next.js 15 (App Router) + TypeScript + Tailwind CSS
-- **UI Components**: shadcn/ui + Radix
-- **Backend/Database**: Firebase (Firestore + Authentication)
-- **Integrations**: Google Calendar API + Google Tasks API
-- **AI**: Grok API (for Magic Break Down feature)
-- **Deployment**: Vercel
+## Project structure
 
----
+```
+app/          Next.js routes (currently the login page and the starter home page)
+components/   shadcn/ui components
+hooks/        React hooks (useAuth)
+lib/          Firestore service layer: tasks, drift, categories, reviews,
+              streaks, insights, userProfile, dateUtils
+types/        Shared TypeScript types (Task, TaskSchedule, UserProfile, ...)
+proxy.ts      Route protection (Next.js 16 replaces middleware with proxy)
+```
 
-## 🚀 Installation & Setup
+A task's placement on a day lives in a separate `taskSchedules` document. When a task drifts, its old schedule is marked `drifted` and a new one is created, which keeps a history of how often a task has moved.
+
+## Getting started
+
 ### Prerequisites
+
 - Node.js 20+
-- A Google account
-- A Firebase project
-### 1. Clone the repository
+- npm
+
+### Install and run
+
 ```bash
-git clone https://github.com/yourusername/drift-tasks.git
-cd drift-tasks
-```
-### 2. Install dependencies
-```bash
+git clone https://github.com/reverseroach/drifttasks.git
+cd drifttasks
 npm install
-```
-### 3. Set up environment variables
-Create a `.env.local` file in the root directory and add:
-```env
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-
-GROK_API_KEY=your_grok_api_key
-```
-### 4. Google API Setup
-- Go to the [Google Cloud Console](https://console.cloud.google.com/welcome/new?pli=1)
-- Enable **Google Calendar API** and **Google Tasks API**
-- Set up OAuth 2.0 credentials
-- Add your authorized redirect URIs
-- Enable Google Sign-In in your Firebase Authentication settings
-### 5. Run the app
-```bash
 npm run dev
 ```
-Open http://localhost:3000 to view the application.
 
+Then open http://localhost:3000.
 
-------------------------------
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+The Firebase web config currently lives in `lib/firebase.ts` and points at the `drift-tasks` Firebase project, so no `.env` file is needed yet. To use your own Firebase project, replace that config and enable Google sign-in under Authentication in the Firebase console.
 
-## Getting Started
+## Scripts
 
-First, run the development server:
+| Command         | What it does                       |
+| --------------- | ---------------------------------- |
+| `npm run dev`   | Start the development server       |
+| `npm run build` | Build for production               |
+| `npm start`     | Run the production build           |
+| `npm run lint`  | Run ESLint                         |
+| `npm test`      | Run the Vitest test suite          |
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Roadmap
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Done**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- [x] Data model and shared types
+- [x] Firestore services for tasks, drift, categories, weekly reviews, user profiles, streaks, and insights
+- [x] Timezone-aware date utilities, with tests
+- [x] Google sign-in page
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Planned**
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Today, capture, and weekly review screens
+- [ ] Scheduling engine that respects your daily limit and calendar
+- [ ] Google Calendar connection (read events, separate access step)
+- [ ] Automatic daily drift job
+- [ ] Recurring tasks (for example, "clean the bathroom every 2 weeks")
+- [ ] Gentle guidance, such as suggesting a lower daily limit after several missed days
+- [ ] More tests for the `lib/` services and the UI
