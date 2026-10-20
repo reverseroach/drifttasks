@@ -12,6 +12,7 @@ Drift Tasks is built for ADHD brains. Instead of piling up overdue tasks and gui
 - **A small daily load.** By default you get about 3 tasks a day (adjustable). Scheduling past your limit shows a gentle warning, never a block.
 - **Gentle drifting.** Missed tasks automatically move 2 to 5 days out instead of turning red. You can also snooze tasks yourself.
 - **Someday list.** Tasks that keep getting pushed back move to a Someday list, which resurfaces once a week.
+- **Magic Breakdown.** AI (via the Grok API) splits a big task into small, easy-to-start steps.
 - **Weekly review.** A calm Sunday session to look back and plan the week ahead.
 - **Streaks.** A day counts if you finish at least one task.
 - **Google Calendar aware.** Sign in with Google, and the app reads your calendar events so it can plan around them.
@@ -25,6 +26,7 @@ No shame, no rigid deadlines. Just momentum.
 - Firebase: Firestore and Authentication (Google sign-in)
 - `date-fns` for timezone-aware date handling
 - [Vitest](https://vitest.dev) for tests
+- Planned: Grok API for Magic Breakdown
 
 ## Project structure
 
@@ -85,6 +87,7 @@ The Firebase web config currently lives in `lib/firebase.ts` and points at the `
 - [ ] Scheduling engine that respects your daily limit and calendar
 - [ ] Google Calendar connection (read events, separate access step)
 - [ ] Automatic daily drift job
+- [ ] Magic Breakdown: AI splits big tasks into steps (Grok API)
 - [ ] Recurring tasks (for example, "clean the bathroom every 2 weeks")
 - [ ] Gentle guidance, such as suggesting a lower daily limit after several missed days
 - [ ] More tests for the `lib/` services and the UI
