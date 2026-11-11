@@ -163,7 +163,7 @@ export async function updateUserInsights(
 
 // Helper functions
 
-function calculateDayCompletionRates(taskSchedules: TaskSchedule[]): Record<string, DayStats> {
+export function calculateDayCompletionRates(taskSchedules: TaskSchedule[]): Record<string, DayStats> {
     // initialize the result object
     const dayStats: Record<string, DayStats> = {
         0: { totalScheduled: 0, completed: 0, rate: 0 }, // Sunday
@@ -201,7 +201,7 @@ function calculateDayCompletionRates(taskSchedules: TaskSchedule[]): Record<stri
     return dayStats
 }
 
-function calculateTimeOfDayPerformance(taskSchedules: TaskSchedule[]): { morning: number; afternoon: number; evening: number; lateNight: number } {
+export function calculateTimeOfDayPerformance(taskSchedules: TaskSchedule[]): { morning: number; afternoon: number; evening: number; lateNight: number } {
     // initialize counters
     const stats = {
         morning: { total: 0, completed: 0 },
@@ -247,7 +247,7 @@ function calculateTimeOfDayPerformance(taskSchedules: TaskSchedule[]): { morning
     }
 }
 
-function calculateDriftPerformance(taskSchedules: TaskSchedule[]): { driftRate: number, driftCount: number } {
+export function calculateDriftPerformance(taskSchedules: TaskSchedule[]): { driftRate: number, driftCount: number } {
     // initialize count
     let driftCount = 0
 
@@ -265,7 +265,7 @@ function calculateDriftPerformance(taskSchedules: TaskSchedule[]): { driftRate: 
     }
 }
 
-function calculateCategoryPerformance(taskSchedules: TaskSchedule[], categoryLookup: Map<string, string> , categories: Category[]): Record<string, DayStats> {
+export function calculateCategoryPerformance(taskSchedules: TaskSchedule[], categoryLookup: Map<string, string> , categories: Category[]): Record<string, DayStats> {
     // initialize the result object
     const dayStats: Record<string, DayStats> = {}
     for (const category of categories) {
@@ -296,7 +296,7 @@ function calculateCategoryPerformance(taskSchedules: TaskSchedule[], categoryLoo
     return dayStats
 }
 
-function calculatePriorityPerformance(taskSchedules: TaskSchedule[], priorityLookup: Map<string, Priority>): Record<string, DayStats> {
+export function calculatePriorityPerformance(taskSchedules: TaskSchedule[], priorityLookup: Map<string, Priority>): Record<string, DayStats> {
     // initialize the result object
     const dayStats: Record<string, DayStats> = {
         high: { totalScheduled: 0, completed: 0, rate: 0 },
@@ -328,7 +328,7 @@ function calculatePriorityPerformance(taskSchedules: TaskSchedule[], priorityLoo
     return dayStats
 }
 
-function calculateEnergyPerformance(taskSchedules: TaskSchedule[], energyLookup: Map<string, EnergyRequired>): Record<string, DayStats> {
+export function calculateEnergyPerformance(taskSchedules: TaskSchedule[], energyLookup: Map<string, EnergyRequired>): Record<string, DayStats> {
     // initialize the result object
     const dayStats: Record<string, DayStats> = {
         high: { totalScheduled: 0, completed: 0, rate: 0 },
