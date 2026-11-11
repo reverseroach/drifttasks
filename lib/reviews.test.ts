@@ -12,7 +12,6 @@ vi.mock('./firebase', () => ({ db: {}, auth: {} }))
 
 import {
     getCurrentWeekStart,
-    getReviewedWeekStart,
     generateWeeklyReviewData,
     ensureWeeklyReviewExists,
     getWeeklyReview,
@@ -73,23 +72,11 @@ describe('getCurrentWeekStart', () => {
     })
 })
 
-describe('getReviewedWeekStart', () => {
-    it('is the week that ended the day before the review day', () => {
-        // Wednesday 11-11 with a Sunday review day: the review covers Sun 11-01 to Sat 11-07
-        expect(getReviewedWeekStart('America/New_York', 0)).toBe('2026-11-01')
-    })
-
-    it('on the review day itself, covers the 7 days just finished', () => {
-        // today is Wednesday 11-11 and the review day is Wednesday: Wed 11-04 to Tue 11-10
-        expect(getReviewedWeekStart('America/New_York', 3)).toBe('2026-11-04')
-    })
-})
-
 describe('generateWeeklyReviewData', () => {
     it('returns zeros for a week with nothing scheduled', async () => {
         seedProfile('user-1', { weeklyReviewDay: 0 })
         expect(await generateWeeklyReviewData('user-1')).toEqual({
-            weekStarting: '2026-11-01',
+            weekStarting: '2026-11-08',
             tasksScheduled: 0,
             tasksDrifted: 0,
             completionRate: 0,
@@ -98,20 +85,20 @@ describe('generateWeeklyReviewData', () => {
     })
 
     it('counts the week\'s schedules by status and how many were high priority', async () => {
-        seedProfile('user-1', { weeklyReviewDay: 0 }) // reviewed week is Sun 11-01 to Sat 11-07
+        seedProfile('user-1', { weeklyReviewDay: 0 }) // week is Sun 11-08 to Sat 11-14
         seedTask('high-1', { priority: 'high' })
         seedTask('high-2', { priority: 'high' })
         seedTask('low-1', { priority: 'low' })
-        seedSchedule('s1', { taskId: 'high-1', scheduledDate: '2026-11-01', status: 'completed' })
-        seedSchedule('s2', { taskId: 'high-2', scheduledDate: '2026-11-03', status: 'drifted' })
-        seedSchedule('s3', { taskId: 'low-1', scheduledDate: '2026-11-07', status: 'pending' })
-        seedSchedule('s4', { taskId: 'low-1', scheduledDate: '2026-11-04', status: 'completed' })
-        seedSchedule('before', { taskId: 'low-1', scheduledDate: '2026-10-31' })
-        seedSchedule('after', { taskId: 'low-1', scheduledDate: '2026-11-08' })
-        seedSchedule('theirs', { userId: 'user-2', scheduledDate: '2026-11-03' })
+        seedSchedule('s1', { taskId: 'high-1', scheduledDate: '2026-11-08', status: 'completed' })
+        seedSchedule('s2', { taskId: 'high-2', scheduledDate: '2026-11-10', status: 'drifted' })
+        seedSchedule('s3', { taskId: 'low-1', scheduledDate: '2026-11-14', status: 'pending' })
+        seedSchedule('s4', { taskId: 'low-1', scheduledDate: '2026-11-11', status: 'completed' })
+        seedSchedule('before', { taskId: 'low-1', scheduledDate: '2026-11-07' })
+        seedSchedule('after', { taskId: 'low-1', scheduledDate: '2026-11-15' })
+        seedSchedule('theirs', { userId: 'user-2', scheduledDate: '2026-11-10' })
 
         expect(await generateWeeklyReviewData('user-1')).toEqual({
-            weekStarting: '2026-11-01',
+            weekStarting: '2026-11-08',
             tasksScheduled: 4,
             tasksDrifted: 1,
             completionRate: 0.5,
@@ -123,7 +110,7 @@ describe('generateWeeklyReviewData', () => {
         seedProfile('user-1', { weeklyReviewDay: 0 })
         for (let i = 0; i < 35; i++) {
             seedTask(`t${i}`, { priority: 'high' })
-            seedSchedule(`s${i}`, { taskId: `t${i}`, scheduledDate: '2026-11-02' })
+            seedSchedule(`s${i}`, { taskId: `t${i}`, scheduledDate: '2026-11-09' })
         }
         const review = await generateWeeklyReviewData('user-1')
         expect(review.tasksScheduled).toBe(35)
@@ -136,32 +123,32 @@ describe('generateWeeklyReviewData', () => {
 })
 
 describe('ensureWeeklyReviewExists', () => {
-    it('creates a review of last week when there isn\'t one', async () => {
+    it('creates this week\'s review when there isn\'t one', async () => {
         seedProfile('user-1', { weeklyReviewDay: 0 })
         seedTask('t1')
-        seedSchedule('s1', { taskId: 't1', scheduledDate: '2026-11-02', status: 'completed' })
+        seedSchedule('s1', { taskId: 't1', scheduledDate: '2026-11-09', status: 'completed' })
 
         await ensureWeeklyReviewExists('user-1')
 
         const reviews = listStored('weeklyReviews')
         expect(reviews).toHaveLength(1)
-        expect(reviews[0]).toMatchObject({ userId: 'user-1', weekStarting: '2026-11-01', tasksScheduled: 1, completionRate: 1 })
+        expect(reviews[0]).toMatchObject({ userId: 'user-1', weekStarting: '2026-11-08', tasksScheduled: 1, completionRate: 1 })
     })
 
     it('does not create a second review for the same week', async () => {
         seedProfile('user-1', { weeklyReviewDay: 0 })
-        seedReview('existing', { weekStarting: '2026-11-01' })
+        seedReview('existing', { weekStarting: '2026-11-08' })
 
         await ensureWeeklyReviewExists('user-1')
 
         expect(listStored('weeklyReviews')).toHaveLength(1)
     })
 
-    it('refreshes the numbers on a review the user hasn\'t opened yet', async () => {
+    it('refreshes the counts on an existing review as the week changes', async () => {
         seedProfile('user-1', { weeklyReviewDay: 0 })
-        seedReview('existing', { weekStarting: '2026-11-01', tasksScheduled: 0 })
+        seedReview('existing', { weekStarting: '2026-11-08', tasksScheduled: 0 })
         seedTask('t1')
-        seedSchedule('s1', { taskId: 't1', scheduledDate: '2026-11-07', status: 'drifted' })
+        seedSchedule('s1', { taskId: 't1', scheduledDate: '2026-11-12', status: 'drifted' })
 
         await ensureWeeklyReviewExists('user-1')
 
@@ -169,18 +156,16 @@ describe('ensureWeeklyReviewExists', () => {
         expect(getStored('weeklyReviews', 'existing')).toMatchObject({ tasksScheduled: 1, tasksDrifted: 1 })
     })
 
-    it('leaves a review alone once the user has opened it', async () => {
+    it('keeps the user\'s notes and reviewedAt when it refreshes', async () => {
         seedProfile('user-1', { weeklyReviewDay: 0 })
-        seedReview('existing', { weekStarting: '2026-11-01', tasksScheduled: 0, reviewedAt: ts('2026-11-08T14:00:00Z') })
-        seedTask('t1')
-        seedSchedule('s1', { taskId: 't1', scheduledDate: '2026-11-07' })
+        const reviewedAt = ts('2026-11-08T14:00:00Z')
+        seedReview('existing', { weekStarting: '2026-11-08', notes: 'Busy week', reviewedAt })
 
         await ensureWeeklyReviewExists('user-1')
 
-        expect(getStored('weeklyReviews', 'existing')!.tasksScheduled).toBe(0)
+        expect(getStored('weeklyReviews', 'existing')).toMatchObject({ notes: 'Busy week', reviewedAt })
     })
 })
-
 
 describe('getWeeklyReview', () => {
     it('returns null when there is no review for that week', async () => {
