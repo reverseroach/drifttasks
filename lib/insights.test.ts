@@ -190,6 +190,19 @@ describe('ensureUserInsightsFresh', () => {
         expect((stored.dayCompletionRates as Record<string, unknown>)[3]).toEqual({ totalScheduled: 1, completed: 1, rate: 1 })
     })
 
+    it('works with a window longer than 30 days', async () => {
+        seedProfile('user-1', { insightWindowDays: 60 })
+        seedTask('task-1')
+        seedSchedule('s1', { taskId: 'task-1', scheduledDate: '2026-09-12', status: 'completed' }) // first day of window
+        seedSchedule('s2', { taskId: 'task-1', scheduledDate: '2026-09-11', status: 'completed' }) // too old
+
+        await ensureUserInsightsFresh('user-1')
+
+        const stored = getStored('userInsights', 'user-1')!
+        expect(stored.windowStart).toBe('2026-09-12')
+        expect((stored.priorityPerformance as Record<string, { totalScheduled: number }>).medium.totalScheduled).toBe(1)
+    })
+
     it('does not create insights when there are no schedules in the window', async () => {
         seedProfile('user-1')
         await ensureUserInsightsFresh('user-1')

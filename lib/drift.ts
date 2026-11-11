@@ -22,6 +22,7 @@ import { getUserProfile } from './userProfile';
 
 import { taskService } from "./tasks";
 import { formatDateInTimeZone, addDaysToDateString } from "./dateUtils";
+import { chunk } from "./chunk";
 
 const driftHistoryCollection = collection(db, "driftHistory");
 const taskSchedulesCollection = collection(db, "taskSchedules");
@@ -52,26 +53,32 @@ export async function driftMissedTasks(userId: string): Promise<void> {
     // if there are no missed tasks, return early
     if(scheduleSnapshot.empty) return;
 
-    const taskIds = scheduleSnapshot.docs.map(doc => doc.data().taskId);
-
-    // get task data that isnt recurring
-    const taskQuery = query(
-        tasksCollection,
-        where("userId", "==", userId),
-        where(documentId(), "in", taskIds),
-        where("isRecurring", "==", false) // only drift non-recurring tasks, recurring tasks will generate new schedules automatically
-    )
-    const tasksSnapshot = await getDocs(taskQuery);
-
     if(userProfileDoc == null) {
         throw new Error("User profile not found");
     }
 
-    const taskLimit = userProfileDoc.dailyTaskLimit ?? 5; // default to 5 if not set
-    const driftDaysMin = userProfileDoc.driftDaysMin ?? 1;
+    // the user turned automatic drifting off, so leave missed tasks where they are
+    if(userProfileDoc.autoDriftEnabled === false) return;
+
+    const taskIds = [...new Set(scheduleSnapshot.docs.map(doc => doc.data().taskId))];
+
+    // get task data that isn't recurring or archived, 30 ids at a time
+    // (Firestore's limit for "in")
+    const taskSnapshots = await Promise.all(chunk(taskIds).map(ids => getDocs(query(
+        tasksCollection,
+        where("userId", "==", userId),
+        where(documentId(), "in", ids),
+        where("archived", "==", false), // archived tasks stay put
+        where("isRecurring", "==", false) // only drift non-recurring tasks, recurring tasks will generate new schedules automatically
+    ))));
+    const taskDocs = taskSnapshots.flatMap(snapshot => snapshot.docs);
+
+    // fallbacks match the app's decided defaults: 3 tasks a day, drift 2 to 5 days
+    const taskLimit = userProfileDoc.dailyTaskLimit ?? 3;
+    const driftDaysMin = userProfileDoc.driftDaysMin ?? 2;
     const driftDaysMax = userProfileDoc.driftDaysMax ?? 5;
 
-    for(const taskDoc of tasksSnapshot.docs) {
+    for(const taskDoc of taskDocs) {
 
         // generate new date
         const driftNumber = Math.floor(Math.random() * (driftDaysMax - driftDaysMin + 1))+ driftDaysMin

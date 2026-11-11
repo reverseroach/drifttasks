@@ -36,10 +36,10 @@ export async function ensureWeeklyReviewExists(userId: string): Promise<void> {
             throw new Error("User profile not found")
         }
 
-        // get starting week
+        // the week being reviewed is the 7 days that ended just before the review day
         const timezone = userProfileDoc.timezone;
         const reviewDay = userProfileDoc.weeklyReviewDay
-        const weekStarting = getCurrentWeekStart(timezone, reviewDay)
+        const weekStarting = getReviewedWeekStart(timezone, reviewDay)
 
         // check for existing weekly review
         const weeklyReview = await getWeeklyReview(userId, weekStarting)
@@ -47,6 +47,13 @@ export async function ensureWeeklyReviewExists(userId: string): Promise<void> {
             // generate weekly review
             const reviewData = await generateWeeklyReviewData(userId)
             await createWeeklyReview(userId, reviewData)
+        } else if (weeklyReview.reviewedAt == null) {
+            // Not opened yet, so refresh the numbers. A schedule can still change
+            // after the review is first created, e.g. the last day's missed tasks
+            // get drifted later that morning. Once the user has seen the review,
+            // it stays as it was.
+            const reviewData = await generateWeeklyReviewData(userId)
+            await updateWeeklyReview(userId, weeklyReview.id, reviewData)
         }
     } catch (error) {
         console.error("Error checking for weekly review:", error);
@@ -219,6 +226,15 @@ export function getCurrentWeekStart(timezone: string, weeklyReviewDay: number): 
     return weekStart
 }
 
+/**
+ * Start of the week a review looks back on: the 7 days that end the day before
+ * the most recent review day. With a Sunday review day, that's last Sunday to
+ * this Saturday.
+ */
+export function getReviewedWeekStart(timezone: string, weeklyReviewDay: number): string {
+    return addDaysToDateString(getCurrentWeekStart(timezone, weeklyReviewDay), -7)
+}
+
 export async function generateWeeklyReviewData(userId: string): Promise<WeeklyReview> {
     try {
         const userProfileDoc = await getUserProfile(userId)
@@ -230,7 +246,7 @@ export async function generateWeeklyReviewData(userId: string): Promise<WeeklyRe
         // create a list of the 7 days in the week
         const timezone = userProfileDoc.timezone
         const reviewDay = userProfileDoc.weeklyReviewDay
-        const weekStart = getCurrentWeekStart(timezone, reviewDay)
+        const weekStart = getReviewedWeekStart(timezone, reviewDay)
 
         const weekDateStrings = []
         for(let i=0; i<7; i++) {

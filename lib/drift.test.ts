@@ -142,12 +142,9 @@ describe('driftMissedTasks', () => {
         await expect(driftMissedTasks('user-1')).rejects.toThrow('after 30 attempts')
     })
 
-    // KNOWN BUG: drifted schedules are created without a scheduledStartTime, and
-    // getTasksForDate orders by scheduledStartTime, which in Firestore hides any
-    // schedule without that field. So the capacity check can't see tasks drifted
-    // earlier in the same run, and they all pile onto one day. `it.fails` keeps the
-    // suite green; switch it to `it` once the bug is fixed.
-    it.fails('spreads several missed tasks out instead of overfilling one day', async () => {
+    // Drifted schedules have no start time, so this also checks that the capacity
+    // check can see untimed tasks drifted earlier in the same run.
+    it('spreads several missed tasks out instead of overfilling one day', async () => {
         seedProfile('user-1', { dailyTaskLimit: 1, driftDaysMin: 2, driftDaysMax: 2 })
         for (const id of ['t1', 't2', 't3']) {
             seedTask(id)
@@ -158,6 +155,55 @@ describe('driftMissedTasks', () => {
 
         const dates = ['t1', 't2', 't3'].map(id => pendingSchedulesFor(id)[0].scheduledDate)
         expect(new Set(dates).size).toBe(3)
+    })
+
+    it('leaves missed tasks alone when the user turned auto drift off', async () => {
+        seedProfile('user-1', { autoDriftEnabled: false })
+        seedTask('task-1')
+        seedSchedule('old', { taskId: 'task-1', scheduledDate: '2026-11-09' })
+
+        await driftMissedTasks('user-1')
+
+        expect(getStored('taskSchedules', 'old')!.status).toBe('pending')
+        expect(listStored('driftHistory')).toHaveLength(0)
+    })
+
+    it('does not drift archived tasks', async () => {
+        seedProfile('user-1')
+        seedTask('task-1', { archived: true })
+        seedSchedule('old', { taskId: 'task-1', scheduledDate: '2026-11-09' })
+
+        await driftMissedTasks('user-1')
+
+        expect(getStored('taskSchedules', 'old')!.status).toBe('pending')
+        expect(listStored('driftHistory')).toHaveLength(0)
+    })
+
+    it('falls back to a limit of 3 and a drift of 2 to 5 days when the profile has no settings', async () => {
+        seedProfile('user-1', { dailyTaskLimit: undefined, driftDaysMin: undefined, driftDaysMax: undefined })
+        for (const id of ['a', 'b', 'c']) {
+            seedTask(id)
+            seedSchedule(`full-${id}`, { taskId: id, scheduledDate: '2026-11-13', scheduledStartTime: undefined })
+        }
+        seedTask('task-1')
+        seedSchedule('old', { taskId: 'task-1', scheduledDate: '2026-11-09' })
+
+        await driftMissedTasks('user-1')
+
+        // 2 days out is 11-13, which already has 3 tasks, so it moves on to 11-14
+        expect(pendingSchedulesFor('task-1')[0].scheduledDate).toBe('2026-11-14')
+    })
+
+    it('handles more than 30 missed tasks by querying them in batches', async () => {
+        seedProfile('user-1', { dailyTaskLimit: 40 })
+        for (let i = 0; i < 35; i++) {
+            seedTask(`t${i}`)
+            seedSchedule(`old-${i}`, { taskId: `t${i}`, scheduledDate: '2026-11-09' })
+        }
+
+        await driftMissedTasks('user-1')
+
+        expect(listStored('driftHistory')).toHaveLength(35)
     })
 })
 
