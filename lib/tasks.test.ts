@@ -234,6 +234,26 @@ describe('getTodayTasks', () => {
         expect(await taskService.getTodayTasks('user-1')).toHaveLength(1)
     })
 
+    it('leaves out a task that was moved off today', async () => {
+        seedProfile('user-1')
+        seedTask('moved')
+        seedTask('staying')
+        seedSchedule('s-moved', { taskId: 'moved', status: 'drifted' })
+        seedSchedule('s-staying', { taskId: 'staying' })
+
+        const today = await taskService.getTodayTasks('user-1')
+
+        expect(today.map(t => t.id)).toEqual(['staying'])
+    })
+
+    it('returns an empty list when every task today was moved off it', async () => {
+        seedProfile('user-1')
+        seedTask('moved')
+        seedSchedule('s-moved', { taskId: 'moved', status: 'drifted' })
+
+        expect(await taskService.getTodayTasks('user-1')).toEqual([])
+    })
+
     it('lists timed tasks earliest first, then untimed ones', async () => {
         seedProfile('user-1')
         for (const id of ['late', 'untimed', 'early']) seedTask(id)

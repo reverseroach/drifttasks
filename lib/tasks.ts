@@ -359,6 +359,9 @@ export const taskService = {
             scheduleSnapshot.docs.forEach(doc => {
                 const data = doc.data();
 
+                // a drifted schedule was moved to another day, so it doesn't belong on Today
+                if (data.status === 'drifted') return;
+
                 // add to list of Ids
                 taskIds.push(data.taskId);
 
@@ -374,6 +377,10 @@ export const taskService = {
                 scheduleLookup.set(data.taskId, cleanScheduleData);
 
             });
+
+            if (taskIds.length === 0) {
+                return [];
+            }
 
             const taskDocs = await getActiveTaskDocs(taskIds);
 
