@@ -36,22 +36,24 @@ export async function ensureWeeklyReviewExists(userId: string): Promise<void> {
             throw new Error("User profile not found")
         }
 
-        // the review covers the week starting on the most recent review day,
-        // so the user can look over the week ahead and adjust it
+        // A review is for planning the week ahead (starting on the most recent
+        // review day) and recaps the week that just ended
         const timezone = userProfileDoc.timezone;
         const reviewDay = userProfileDoc.weeklyReviewDay
         const weekStarting = getCurrentWeekStart(timezone, reviewDay)
 
-        const reviewData = await generateWeeklyReviewData(userId)
-
         // check for existing weekly review
         const weeklyReview = await getWeeklyReview(userId, weekStarting)
         if (weeklyReview == null) {
+            const reviewData = await generateWeeklyReviewData(userId)
             await createWeeklyReview(userId, reviewData)
-        } else {
-            // The week's schedule keeps changing (drifts, completions, edits made
-            // from the review page itself), so refresh the counts each time.
-            // updateDoc only touches these fields, so notes and reviewedAt stay.
+        } else if (weeklyReview.reviewedAt == null) {
+            // Not opened yet, so refresh the recap. The last day of the past week
+            // can still change after the review is first created, e.g. its missed
+            // tasks get drifted later on review day. Once the user has seen the
+            // recap it stays as it was. updateDoc only touches the recap fields,
+            // so notes are kept.
+            const reviewData = await generateWeeklyReviewData(userId)
             await updateWeeklyReview(userId, weeklyReview.id, reviewData)
         }
     } catch (error) {
@@ -233,14 +235,16 @@ export async function generateWeeklyReviewData(userId: string): Promise<WeeklyRe
             throw new Error("User profile not found")
         }
 
-        // create a list of the 7 days in the week
+        // the review is for the week starting on the review day, and its counts
+        // recap the 7 days before that: the week that just ended
         const timezone = userProfileDoc.timezone
         const reviewDay = userProfileDoc.weeklyReviewDay
         const weekStart = getCurrentWeekStart(timezone, reviewDay)
+        const recapWeekStart = addDaysToDateString(weekStart, -7)
 
         const weekDateStrings = []
         for(let i=0; i<7; i++) {
-            weekDateStrings.push(addDaysToDateString(weekStart, i))
+            weekDateStrings.push(addDaysToDateString(recapWeekStart, i))
         }
 
         // queries the weeks task schedules (via range query on scheduledDate)
@@ -254,6 +258,7 @@ export async function generateWeeklyReviewData(userId: string): Promise<WeeklyRe
         if (scheduleSnapshot.empty) {
             return {
                 weekStarting: weekStart,
+                recapWeekStarting: recapWeekStart,
                 tasksScheduled: 0,
                 tasksDrifted: 0,
                 completionRate: 0,
@@ -294,6 +299,7 @@ export async function generateWeeklyReviewData(userId: string): Promise<WeeklyRe
 
         return {
             weekStarting: weekStart,
+            recapWeekStarting: recapWeekStart,
             tasksScheduled,
             tasksDrifted,
             completionRate,

@@ -137,10 +137,13 @@ export interface WeeklyReview {
   id: string;
   userId: string;
   
-  weekStarting: string;           // YYYY-MM-DD - start of the reviewed week
+  weekStarting: string;           // YYYY-MM-DD - start of the week being planned (the review day)
+  recapWeekStarting: string;      // YYYY-MM-DD - start of the week just ended, which the counts below recap
 
   reviewedAt?: Date;               // When the user completed the review
   totalTasksReviewed?: number;
+
+  // Recap of the week just ended (recapWeekStarting to the day before weekStarting)
   tasksScheduled: number;
   tasksDrifted: number;
   completionRate: number;         // 0.0 to 1.0 (e.g. 0.75 = 75%)
