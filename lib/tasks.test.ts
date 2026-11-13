@@ -125,6 +125,7 @@ describe('updateTask', () => {
 
 describe('completeTask', () => {
     it('marks the schedule completed and sets completedAt on the task', async () => {
+        seedProfile('user-1')
         seedTask('task-1')
         seedSchedule('s1', { taskId: 'task-1' })
 
@@ -146,7 +147,30 @@ describe('completeTask', () => {
         await expect(taskService.completeTask('user-1', 'missing')).rejects.toThrow('Task schedule not found')
     })
 
-    it.todo('updates the user\'s streak (completeTask still has a TODO for this)')
+    it('clears hasActiveSchedule so the task no longer counts as scheduled', async () => {
+        seedProfile('user-1')
+        seedTask('task-1', { hasActiveSchedule: true })
+        seedSchedule('s1', { taskId: 'task-1' })
+
+        const task = await taskService.completeTask('user-1', 's1')
+
+        expect(getStored('tasks', 'task-1')!.hasActiveSchedule).toBe(false)
+        expect(task.hasActiveSchedule).toBe(false)
+    })
+
+    it('updates the user\'s streak', async () => {
+        seedProfile('user-1', { currentStreak: 4, longestStreak: 4, lastStreakDate: '2026-11-10' })
+        seedTask('task-1')
+        seedSchedule('s1', { taskId: 'task-1' })
+
+        await taskService.completeTask('user-1', 's1')
+
+        expect(getStored('userProfiles', 'user-1')).toMatchObject({
+            currentStreak: 5,
+            longestStreak: 5,
+            lastStreakDate: '2026-11-11',
+        })
+    })
 })
 
 describe('archiveTask', () => {
@@ -202,12 +226,53 @@ describe('getTodayTasks', () => {
     // KNOWN BUG: the schedule query orders by scheduledStartTime, and Firestore
     // leaves out documents that don't have the field being ordered by. Tasks with
     // no time (including every auto-drifted task) never show on Today.
-    it.fails('includes tasks scheduled for today without a start time', async () => {
+    it('includes tasks scheduled for today without a start time', async () => {
         seedProfile('user-1')
         seedTask('a')
         seedSchedule('sa', { taskId: 'a', scheduledDate: '2026-11-11', scheduledStartTime: undefined })
 
         expect(await taskService.getTodayTasks('user-1')).toHaveLength(1)
+    })
+
+    it('leaves out a task that was moved off today', async () => {
+        seedProfile('user-1')
+        seedTask('moved')
+        seedTask('staying')
+        seedSchedule('s-moved', { taskId: 'moved', status: 'drifted' })
+        seedSchedule('s-staying', { taskId: 'staying' })
+
+        const today = await taskService.getTodayTasks('user-1')
+
+        expect(today.map(t => t.id)).toEqual(['staying'])
+    })
+
+    it('returns an empty list when every task today was moved off it', async () => {
+        seedProfile('user-1')
+        seedTask('moved')
+        seedSchedule('s-moved', { taskId: 'moved', status: 'drifted' })
+
+        expect(await taskService.getTodayTasks('user-1')).toEqual([])
+    })
+
+    it('lists timed tasks earliest first, then untimed ones', async () => {
+        seedProfile('user-1')
+        for (const id of ['late', 'untimed', 'early']) seedTask(id)
+        seedSchedule('s-late', { taskId: 'late', scheduledStartTime: '15:00' })
+        seedSchedule('s-untimed', { taskId: 'untimed', scheduledStartTime: undefined })
+        seedSchedule('s-early', { taskId: 'early', scheduledStartTime: '08:30' })
+
+        const today = await taskService.getTodayTasks('user-1')
+
+        expect(today.map(t => t.id)).toEqual(['early', 'late', 'untimed'])
+    })
+
+    it('handles more than 30 tasks in one day by querying them in batches', async () => {
+        seedProfile('user-1')
+        for (let i = 0; i < 35; i++) {
+            seedTask(`t${i}`)
+            seedSchedule(`s${i}`, { taskId: `t${i}` })
+        }
+        expect(await taskService.getTodayTasks('user-1')).toHaveLength(35)
     })
 })
 
@@ -236,6 +301,13 @@ describe('getTasksForDate', () => {
     it('returns only pending tasks by default', async () => {
         const tasks = await taskService.getTasksForDate('user-1', '2026-11-13')
         expect(tasks.map(t => t.id)).toEqual(['pending'])
+    })
+
+    it('counts tasks without a start time', async () => {
+        seedTask('untimed')
+        seedSchedule('s4', { taskId: 'untimed', scheduledDate: '2026-11-13', scheduledStartTime: undefined })
+        const tasks = await taskService.getTasksForDate('user-1', '2026-11-13')
+        expect(tasks.map(t => t.id).sort()).toEqual(['pending', 'untimed'])
     })
 
     it('includes completed tasks when asked, but never drifted ones', async () => {

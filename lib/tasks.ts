@@ -21,9 +21,37 @@ import type { TaskSchedule } from '@/types';
 import type { TodayTask } from '@/types';
 import { formatDateInTimeZone } from './dateUtils';
 import { getUserProfile } from './userProfile';
+import { updateStreak } from './streaks';
+import { chunk } from './chunk';
 
 const tasksCollection = collection(db, 'tasks');
 const taskSchedulesCollection = collection(db, 'taskSchedules');
+
+/**
+ * Fetches the non-archived tasks with these ids. Firestore's "in" filter takes
+ * at most 30 values, so the ids are queried in groups of 30.
+ */
+async function getActiveTaskDocs(taskIds: string[]) {
+    const uniqueIds = [...new Set(taskIds)];
+    const snapshots = await Promise.all(
+        chunk(uniqueIds).map(ids => getDocs(query(
+            tasksCollection,
+            where(documentId(), "in", ids),
+            where("archived", "==", false)
+        )))
+    );
+    return snapshots.flatMap(snapshot => snapshot.docs);
+}
+
+/** Timed tasks first, earliest first; untimed tasks after them. */
+function byStartTime(a: TodayTask, b: TodayTask): number {
+    if (a.scheduledStartTime && b.scheduledStartTime) {
+        return a.scheduledStartTime.localeCompare(b.scheduledStartTime);
+    }
+    if (a.scheduledStartTime) return -1;
+    if (b.scheduledStartTime) return 1;
+    return 0;
+}
 
 export const taskService = {
     // ==================== CORE CRUD ==================== //
@@ -244,19 +272,22 @@ export const taskService = {
                 throw new Error("Unauthorized to update this task");
             }
 
+            // the task's only pending schedule is now done, so it no longer has an active one
             await updateDoc(taskRef, {
                 completedAt: serverTimestamp(),
+                hasActiveSchedule: false,
                 updatedAt: serverTimestamp()
             })
 
-            // update streak tracking
-            // TODO: will add later when function exists in streak service
+            // completing any task keeps the day's streak alive
+            await updateStreak(userId);
 
             // return the updated task
             const updatedTaskData = taskSnap.data();
             const updatedTask: Task = {
                 id: taskSnap.id,
                 ...updatedTaskData,
+                hasActiveSchedule: false,
                 completedAt: new Date(), // approximate for immediate return
                 updatedAt: new Date(), // approximate for immediate return
             } as Task;
@@ -305,11 +336,13 @@ export const taskService = {
             const timezone = userProfileDoc != null ? userProfileDoc.timezone : undefined;
             const today: string = formatDateInTimeZone(timezone);
 
+            // No orderBy("scheduledStartTime") here: Firestore drops every document
+            // that doesn't have the field being ordered by, which would hide untimed
+            // tasks (including every auto-drifted one). We sort in code below instead.
             const scheduleQuery = query(
                 taskSchedulesCollection, 
                 where("userId", "==", userId),
-                where("scheduledDate", "==", today),
-                orderBy("scheduledStartTime", "asc")
+                where("scheduledDate", "==", today)
             );
 
             const scheduleSnapshot = await getDocs(scheduleQuery);
@@ -325,6 +358,9 @@ export const taskService = {
 
             scheduleSnapshot.docs.forEach(doc => {
                 const data = doc.data();
+
+                // a drifted schedule was moved to another day, so it doesn't belong on Today
+                if (data.status === 'drifted') return;
 
                 // add to list of Ids
                 taskIds.push(data.taskId);
@@ -342,17 +378,13 @@ export const taskService = {
 
             });
 
-            // Note: Firestore has a limit of 30 for 'in' queries, but there should always be less than 30 tasks scheduled 
-            // for a single day. If we wanted to future-proof this, we could batch the 'in' queries in groups of 30.
-            const taskQuery = query(
-                tasksCollection, 
-                where(documentId(), "in", taskIds),
-                where("archived", "==", false),
-            );
+            if (taskIds.length === 0) {
+                return [];
+            }
 
-            const taskSnapshot = await getDocs(taskQuery);
+            const taskDocs = await getActiveTaskDocs(taskIds);
 
-            const todayTasks: TodayTask[] = taskSnapshot.docs.map((doc) => {
+            const todayTasks: TodayTask[] = taskDocs.map((doc) => {
                 const taskData = doc.data();
                 const scheduleData = scheduleLookup.get(doc.id);
                 return {
@@ -370,7 +402,7 @@ export const taskService = {
                 } as TodayTask;
             });
 
-            return todayTasks;
+            return todayTasks.sort(byStartTime);
         } catch(error) {
             console.error("Error fetching today's tasks:", error);
             throw error;
@@ -427,8 +459,9 @@ export const taskService = {
                 taskSchedulesCollection,
                 where("userId", "==", userId),
                 where("scheduledDate", "==", date),
-                statusFilter,
-                orderBy("scheduledStartTime", "asc")
+                statusFilter
+                // No orderBy("scheduledStartTime"): it would hide untimed schedules,
+                // and drift relies on this count to see how full a day already is.
             );
             
             const scheduleSnapshot = await getDocs(scheduleQuery);
@@ -441,14 +474,9 @@ export const taskService = {
             // Process and return the tasks
             const taskIds = scheduleSnapshot.docs.map(doc => doc.data().taskId);
 
-            const taskQuery = query(
-                tasksCollection,
-                where(documentId(), "in", taskIds),
-                where("archived", "==", false)
-            )
-            const taskSnapshot = await getDocs(taskQuery);
+            const taskDocs = await getActiveTaskDocs(taskIds);
 
-            const tasks: Task[] = taskSnapshot.docs.map((doc) => {
+            const tasks: Task[] = taskDocs.map((doc) => {
                 const data = doc.data();
                 return {
                     id: doc.id,

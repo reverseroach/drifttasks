@@ -51,7 +51,7 @@ describe('createUserProfile', () => {
 
     // KNOWN BUG: the profile returned to the caller is missing the streak fields
     // that were saved, so anything using the return value sees them as undefined.
-    it.fails('returns the streak fields it saved', async () => {
+    it('returns the streak fields it saved', async () => {
         const profile = await createUserProfile('user-1', settings)
         expect(profile.currentStreak).toBe(0)
         expect(profile.longestStreak).toBe(0)

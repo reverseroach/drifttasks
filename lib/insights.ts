@@ -366,16 +366,14 @@ async function generateInsightData(userId: string, profile: UserProfile, today: 
     const windowEnd = today
     const windowStart = addDaysToDateString(today, -profileWindowDays)
 
-    const windowDateStrings = []
-    for(let i=0; i<profileWindowDays; i++) {
-        windowDateStrings.push(addDaysToDateString(windowStart, i))
-    }
-
-    // fetch task schedules for the window
+    // fetch task schedules for the window: from windowStart up to, but not
+    // including, today. A range works for any window size, where an "in" list of
+    // dates would break above 30 days (Firestore's limit for "in").
     const q = query(
         taskSchedulesCollection,
         where("userId", "==", userId),
-        where("scheduledDate", "in", windowDateStrings)
+        where("scheduledDate", ">=", windowStart),
+        where("scheduledDate", "<", windowEnd)
     )
     const scheduleSnapshot = await getDocs(q)
 

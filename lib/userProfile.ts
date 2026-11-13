@@ -29,6 +29,8 @@ export async function createUserProfile(
         return {
             uid,
             ...profileData,
+            currentStreak: 0,
+            longestStreak: 0,
             createdAt: new Date(),
             updatedAt: new Date()
         } as UserProfile
